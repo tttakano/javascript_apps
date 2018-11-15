@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tetlis</title>
+    <meta charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css?family=Press+Start+2P|VT323" rel="stylesheet">
+    <style>
+        #canvas {
+            width: 800px;
+            height: 681px;
+            touch-action: none;
+        }
+        #START {
+            position: absolute;
+            top: 280px;
+            left: 8px;
+            height: 120px;
+            width: 800px;
+        }
+    </style>
+    <script>
+        "use strict";
+        //gloval valiables
+        var ctx, fallingMino, futureMino, tiles = [], moves = [], now, next, hold, falling;
+        var timer = NaN, startTime = NaN, elapsed = 0, score = 0;
+        var color = ["#FFFF00", "#00FFFF", "#FF00FF", "#0000FF", "#ff7f00", "#FF0000", "#00FF00", "#888888", "#000000"];
+
+        //usable function
+        function rand(v) {
+            return Math.floor(Math.random() * v);
+        }
+
+        function iterateAll(f) {
+            for (var x = 0; x < 12; x++) {
+                for (var y = 0; y < 23; y++) {
+                    f(x, y, tiles[x][y]);
+                }
+            }
+        }
+
+        function printAll() {
+            console.log("ALL");
+            iterateAll(function(x, y, t){
+                if(t.value == 1){
+                    console.log(t);
+                }
+            });
+        }
+
+        function iterateMino(f) {
+            for (var x = 0; x < 4; x++) {
+                for (var y = 0; y < 4; y++) {
+                    f(x, y);
+                }
+            }
+        }
+
+        function printMino() {
+            iterateMino(function(x,y){
+                console.log(fallingMino.mino[x][y]);
+            });
+        }
+
+        //define class
+
+        function Tile(value, color, x = 0, y = 0) {
+            this.x = x;
+            this.y = y;
+            this.py = y;
+            this.value = value;
+            this.color = color;
+            this.count = 0;
+            this.getY = function() {
+                return this.py;
+            }
+            this.move = function (py, color) {
+                this.py = py;
+                this.color = color;
+                moves.push(this);
+            }
+            this.update = function (){
+                this.count++;
+                if(this.count % 2 == 0){
+                    this.py = this.py + 1;
+                }
+            }
+        }
+
+        function Mino(x, y, k) {
+            this.x = x;
+            this.y = y;
+            this.count = 0;
+            this.mino = new Array(4);
+            for(let y = 0; y < 4; y++) {this.mino[y] = new Array(4).fill(0);}
+            for (var i = 0; i <  4; i++) {
+                for (var j = 0; j < 4; j++) {
+                    this.mino[i][j] = new Tile(0, color[8], this.x + i, this.y + j);
+                }
+            }
+            switch(k) {
+                case 0:
+                    this.mino[1][1] = this.mino[2][1] = this.mino[1][2] = this.mino[2][2] = new Tile(1, color[k]);
+                    break;
+                case 1:
+                    this.mino[1][0] = this.mino[1][1] = this.mino[1][2] = this.mino[1][3] = new Tile(1, color[k]);
+                    break;
+                case 2:
+                    this.mino[1][1] = this.mino[1][2] = this.mino[2][2] = this.mino[1][3] = new Tile(1, color[k]);
+                    break;
+                case 3:
+                    this.mino[1][1] = this.mino[1][2] = this.mino[2][1] = this.mino[1][3] = new Tile(1, color[k]);
+                    break;
+                case 4:    
+                    this.mino[2][1] = this.mino[2][2] = this.mino[2][3] = this.mino[1][1] = new Tile(1, color[k]);
+                    break;
+                case 5:
+                    this.mino[2][1] = this.mino[1][2] = this.mino[2][2] = this.mino[1][3] = new Tile(1, color[k]);
+                    break;
+                case 6:
+                    this.mino[1][1] = this.mino[1][2] = this.mino[2][2] = this.mino[2][3] = new Tile(1, color[k]);
+                    break;
+                case 7:
+                    break;
+            }
+            for(var i = 0; i < 4; i++){
+                for (var j = 0; j < 4; j++) {
+                    if(this.mino[i][j].value) {
+                        this.mino[i][j] = new Tile(1, this.mino[i][j].color, this.x + i, this.y + j);
+                    }
+                }
+            }
+        }
+
+        //define function
+        function stockMino() {
+            var X ,Y;
+            if(hold == 7) {
+                hold = now;
+                now = rand(7);
+                X = 4;
+                Y = 0;
+            }else{
+                var t = hold;
+                hold = now;
+                now = t;
+                X = fallingMino.x;
+                Y = fallingMino.y;
+            }
+            fallingMino = new Mino(X, Y, now);
+        }
+
+        function afterFall(aMino) {
+            falling = false;
+            patchMino(aMino);
+            judgeVanish();
+            judgeGameEnd();
+            now = next;
+            next = rand(7);
+        }
+        
+        function copyMino() {
+            var copyMino = new Mino(fallingMino.x, fallingMino.y, 8);
+            iterateMino(function(x, y){
+                copyMino.mino[x][y].x = fallingMino.mino[x][y].x;
+                copyMino.mino[x][y].y = fallingMino.mino[x][y].y;
+                copyMino.mino[x][y].py = fallingMino.mino[x][y].py;
+                copyMino.mino[x][y].value = fallingMino.mino[x][y].value;
+                copyMino.mino[x][y].color = fallingMino.mino[x][y].color;
+            });
+            return copyMino;
+        }
+
+        function move(i) {
+            switch(i) {
+                case 0:
+                    moveDown(); break;
+                case 1:
+                    moveRight(); break;
+                case 2:
+                    moveLeft(); break;
+                case 3:
+                    rotation(); break;
+            }
+            if(falling){modifyMino();}
+        }
+
+        function rotation() {
+            var copymino = copyMino();
+            iterateMino(function(i,j){
+                copymino.mino[i][j] = fallingMino.mino[3-j][i];
+            });
+            if(!collapse(copymino)){
+                iterateMino(function(i, j){
+                    fallingMino.mino[i][j] = copymino.mino[i][j];
+                });
+            }
+        }
+
+        function moveDown(){
+            var copymino = copyMino();
+            copymino.y++;
+            if(!collapse(copymino)) {
+                fallingMino.y++;
+            }else {
+                afterFall(fallingMino);
+            }
+        }
+
+        function moveRight(){
+            var copymino = copyMino();
+            copymino.x++;
+            if(!collapse(copymino)) {
+                fallingMino.x++;
+            }
+        }
+
+        function moveLeft(){
+            var copymino = copyMino();
+            copymino.x--;
+            if(!collapse(copymino)) {
+                fallingMino.x--;
+            }
+        }
+
+        //modify Tiles in Mino
+        function modifyMino() {
+            futureMino = copyMino();
+            while(!collapse(futureMino)){
+                futureMino.y++;
+            }
+            futureMino.y--;
+            iterateMino(function(i, j){
+                fallingMino.mino[i][j].x = fallingMino.x + i;
+                fallingMino.mino[i][j].y = fallingMino.y + j;
+                fallingMino.mino[i][j].py = fallingMino.y + j;
+                futureMino.mino[i][j].x = futureMino.x + i;
+                futureMino.mino[i][j].y = futureMino.y + j;
+                futureMino.mino[i][j].py = futureMino.y + j;
+            });
+        }
+
+        //patch Mino to tiles
+        function patchMino(pMino) {
+            iterateMino(function(i, j){
+                if(pMino.mino[i][j].value){
+                    tiles[pMino.x + i][pMino.y + j] = pMino.mino[i][j];
+                    pMino.mino[i][j] = new Tile(0, color[7]);
+                }
+            });
+        }
+
+        //collision detection
+        function collapse(copymino) {
+            var collapse = false;
+            iterateMino(function(i, j){
+                if(copymino.mino[i][j].value && tiles[copymino.x + i][copymino.y + j].value){
+                        collapse = true;
+                }
+            });
+            return collapse;
+        }
+
+        //vanish process
+        function judgeVanish() {
+            //printAll();
+            var vanish = false;
+            var remove = new Array(20).fill(1);
+            var rCount = 0;
+            for(var y = 0; y < 20; y++) {
+                for(var x = 1; x < 11; x++) {
+                    if(!tiles[x][y+2].value){
+                        remove[y] = 0;
+                    }
+                }
+            }
+            for(var y = 0; y < 20; y++) {
+                if(remove[y]) {
+                    for(var x = 1; x < 11; x++) {
+                        tiles[x][y+2].remove = true;
+                        tiles[x][y+2].value = 0;
+                    }
+                    rCount++;
+                }
+            }
+            score += rCount ** 2;
+            fall();
+        }
+
+        //GAMEOVER　process
+        function judgeGameEnd(){
+            for(var x = 3; x < 9; x++){
+                if(tiles[x][1].value){
+                    clearInterval(timer);
+                    timer = NaN;
+                    repaint();
+                }
+            }
+        }
+
+        function fall() {
+            for (var x = 1 ; x < 11 ; x++) {
+                for (var y = 22, sp = 22; y >= 2 ; y--, sp--) {
+                    while (sp >= 2) {
+                        if (tiles[x][sp].remove) {
+                            sp--;
+                        } else {
+                            break;
+                        }
+                    }
+                    if (y != sp) {
+                        if(sp >= 2){
+                            tiles[x][y].move(sp, tiles[x][sp].color);
+                            if(tiles[x][sp].value == 1){
+                                tiles[x][y].value = 1;
+                            }
+                            tiles[x][sp].value = 0;
+                        }else{
+                            tiles[x][y].color = color[7];
+                        }
+                    }
+                }
+            }
+            iterateAll(function (x, y, t) { t.remove = false; })
+        }
+
+        //define fundamental function
+        function init(){
+            for(var x = 0; x < 12; x++) {
+                tiles[x] = [];
+                for (var y = 0; y < 23; y++) {
+                    tiles[x][y] = new Tile(0, color[7], x, y);
+                }
+            }
+            for(var y = 0; y < 23; y++) {
+                tiles[0][y].value = 99;
+                tiles[0][y].color = "#FFFFFF";
+                tiles[11][y].value = 99;
+                tiles[11][y].color = "#FFFFFF";
+            }
+            for (var x = 0; x < 12; x++) {
+                tiles[x][22].value = 99;
+                tiles[x][22].color = "#FFFFFF";
+            }
+
+            var falling = false;
+
+            var canvas = document.getElementById("canvas");
+            ctx = canvas.getContext("2d");
+            onkeydown = mykeydown;
+            //printAll();
+            repaint();
+        }
+
+        function go(){
+            startTime = new Date();
+            timer = setInterval(tick, 45);
+            now = rand(7);
+            next = rand(7);
+            hold = 7;
+            document.getElementById("START").style.display = "none";
+        }
+
+        function mykeydown(e) {
+            if(falling){
+                switch(e.keyCode) {
+                    case 37:
+                        move(2); break;
+                    case 38:
+                        move(3); break;
+                    case 39:
+                        move(1); break;
+                    case 40:
+                        move(0); break;
+                    case 189:
+                        afterFall(futureMino); break;
+                    case 16:    
+                        stockMino(); break;
+                }
+            }
+        }
+
+        function tick() {
+            if(!falling){
+                falling = true;
+                fallingMino = new Mino(4, -1, now);
+                modifyMino();
+            }
+            fallingMino.count++;
+            if(fallingMino.count > getcycle()) {
+                fallingMino.count = 0;
+                move(0);
+            }
+            if(moves.length > 0) {
+                for(var i = 0; i < moves.length; i++) {
+                    moves[i].update();
+                }
+                moves = moves.filter(function (t) {return t.py != t.y;})
+            }
+            elapsed = ((new Date()).getTime() - startTime);
+            repaint();
+        }
+
+        //pitch speed
+        function getcycle() {
+            return 10;
+        }
+
+        function repaint(){
+            ctx.strokeStyle = "#0000FF"
+            ctx.fillStyle = "#333333"
+            ctx.lineWidth = 0;
+            ctx.fillRect(0,0,800,700);
+            ctx.strokeRect(80,85,300,600);
+            ctx.fillStyle = color[7];
+            ctx.fillRect(450,100,120,120);
+            ctx.fillRect(620,100,120,120);
+            ctx.fillRect(450,330,290,90);
+            ctx.fillRect(450,480,290,90);
+            
+            iterateAll(function(x, y, t){
+                ctx.fillStyle = t.color;
+                ctx.fillRect(51 + x * 29, 26 + t.getY() * 29, 27, 27);
+            });
+
+            var s = new Mino(0, 0, next);
+            var t = new Mino(0, 0, hold);
+            iterateMino(function(i,j){
+                ctx.fillStyle = s.mino[i][j].color;
+                ctx.fillRect(453 + s.mino[i][j].x * 29, 103 + s.mino[i][j].y * 29, 27, 27);
+                ctx.fillStyle = t.mino[i][j].color;
+                ctx.fillRect(623 + t.mino[i][j].x * 29, 103 + t.mino[i][j].y * 29, 27, 27);
+            });
+
+            if(falling){
+                iterateMino(function(i, j){
+                    if(fallingMino.mino[i][j].value){
+                        ctx.fillStyle = color[8];
+                        ctx.fillRect(51 + futureMino.mino[i][j].x * 29, 26 + futureMino.mino[i][j].y * 29, 27, 27);
+                        ctx.fillStyle = fallingMino.mino[i][j].color;
+                        ctx.fillRect(51 + fallingMino.mino[i][j].x * 29, 26 + fallingMino.mino[i][j].y * 29, 27, 27);
+                    }
+                });
+            }
+
+            var seconds = Math.floor(elapsed / 1000) % 60;
+            var minutes = Math.floor(elapsed / 1000 / 60);
+            ctx.fillStyle = "rgba(255, 255, 255, 1)" ;
+            ctx.font = "20px 'Press Start 2P'";
+            ctx.fillText("Next" , 450, 100);
+            ctx.fillText("Stock" , 620, 100);
+            ctx.font = "30px 'Press Start 2P'";
+            ctx.fillText("Score" , 470, 340);
+            ctx.fillText("Time" , 470, 490);
+            ctx.font = "40px 'Press Start 2P'";
+            ctx.fillText(('0000' + score).slice(-4), 520, 400);
+            ctx.fillText(('00' + minutes).slice(-2) + ":" + ('00' + seconds).slice(-2), 505, 550);
+            ctx.fillStyle = "white";
+
+
+            if (isNaN(timer)) {
+                ctx.fillStyle = color[8];
+                ctx.fillRect(0,270,800,120);
+                ctx.fillStyle = "rgba(255, 255, 255, 1)" ;
+                ctx.font = "40px 'Press Start 2P'";
+                ctx.fillText("GAME OVER" , 230, 350);
+            }
+        }
+    
+    </script>
+</head>
+<body onload="init()">
+    <canvas id="canvas" width="800" height="681"></canvas>
+    <img id="START" src="start.png" onclick="go()"><br/>
+</body>
+</html>

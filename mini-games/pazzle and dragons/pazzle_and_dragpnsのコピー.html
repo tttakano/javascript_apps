@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <link href="https://fonts.googleapis.com/css?family=Pacifico" rel="stylesheet">
+    <title>pazzle and dragons</title>
+    <style>
+        #canvas {
+            width: 800px;
+            height: 681px;
+            touch-action: none;
+        }
+    </style>
+    <script>
+        "use strict";
+
+        var ctx, board = [], moves = [], mCount = 0, sizeX = 6, sizeY = 5, moving = false, movingSphere, falling = false;
+        var prevX, prevY, comboX, comboY, comboCount = 0;
+        var timer = NaN, startTime = NaN, elapsed = 0, score = 0, bgimage, sound;
+        var mouseX = null, mouseY = null, mouseUpX = null, mouseUpY = null;
+        var colors = ["#FFFF00", "#00FFFF", "#FF00FF", "#0000FF", "#FF0000", "#00FF00", "#888888", "#000000"];
+        
+        function rand(v) {
+            return Math.floor(Math.random() * v);
+        }
+
+        function iterate(f) {
+            for (var x = 0; x < sizeX; x++) {
+                for(var y = 0; y < sizeY; y++) {
+                    f(x, y, board[x][y]);
+                }
+            }
+        }
+
+//define class
+        function Sphere(x, y) {
+            this.x = x;
+            this.y = y;
+            this.px = x;
+            this.py = y;
+            this.count = 0;
+            this.getX = function () {
+                return this.x + (this.px - this.x) * (this.count) / 20;
+            }
+            this.getY = function () {
+                return this.y + (this.py - this.y) * (this.count) / 20;
+            }
+            this.move = function (px, py, color, count) {
+                this.px = px;
+                this.py = py;
+                this.color = color;
+                this.count = count;
+                this.sliding = true;
+                moves.push(this);
+            }
+            this.update = function () {
+                if (--this.count <= 0) {
+                    this.sliding = false;
+                }
+            }
+        }
+
+//define function
+        function setColor(x, y, c) {
+            var flag = true;
+            if(x > 1) {
+                var c1 = board[x - 1][y].color;
+                var c2 = board[x - 2][y].color;
+                flag &= !(c == c1 && c == c2);
+            }
+            if(x < sizeX - 2) {
+                var c1 = board[x + 1][y].color;
+                var c2 = board[x + 2][y].color;
+                flag &= !(c == c1 && c == c2);
+            }
+            if(y > 1) {
+                var c1 = board[x][y - 1].color;
+                var c2 = board[x][y - 2].color;
+                flag &= !(c == c1 && c == c2);
+            }
+            if(y < sizeY -2) {
+                var c1 = board[x][y + 1].color;
+                var c2 = board[x][y + 2].color;
+                flag &= !(c == c1 && c == c2);
+            }
+            return flag;
+        }
+
+        function mymousedown(e) {
+            if(falling) {return ;}
+            mouseX = e.offsetX;
+            mouseY = e.offsetY;
+            iterate(function(x, y, t){
+                if(208 + x * 64 < mouseX && mouseX < 208 + (x + 1) * 64 && 310 + y * 64 < mouseY && 310 + (y + 1) * 64 > mouseY) {
+                    moving = true;
+                    movingSphere = new Sphere(x, y);
+                    movingSphere.color = t.color;
+                    movingSphere.moving = true;
+                }
+            });
+            prevX = movingSphere.x;
+            prevY = movingSphere.y;
+        }
+
+        function mymousemove(e) {
+            mouseX = e.offsetX;
+            mouseY = e.offsetY;
+            var nowX, nowY;
+            if(moving && !falling){
+                iterate(function(x, y, t){
+                    if(208 + x * 64 < mouseX && mouseX <= 208 + (x + 1) * 64 && 310 + y * 64 < mouseY && 310 + (y + 1) * 64 >= mouseY) {
+                        nowX = x;
+                        nowY = y;
+                    }
+                });
+                if(mouseX <= 200 || mouseX >= 600 || mouseY <= 208 || mouseY >= 640){
+                    board[prevX][prevY].color = movingSphere.color;
+                    moving = false;
+                    prevX = NaN;
+                    prevY = NaN;
+                    return ;
+                }
+                if(nowX != prevX || nowY != prevY){
+                    board[prevX][prevY].move(nowX, nowY, board[nowX][nowY].color, 10);
+                    prevX = nowX;
+                    prevY = nowY;
+                }
+                
+            }
+        }
+
+        function mymouseup(e) {
+            mouseX = e.offsetX;
+            mouseY = e.offsetY;
+            if(moving) {
+                board[prevX][prevY].color = movingSphere.color;
+                moving = false;
+                prevX = NaN;
+                prevY = NaN;
+            }
+        }
+
+        function removeTile() {
+            for (var y = 0 ; y < sizeY ; y++) {    
+                var c0 = board[0][y].color;
+                var count = 1;
+                for (var x = 1 ; x < sizeX ; x++) {
+                    var c1 = board[x][y].color;
+                    if (c0 != c1) {
+                        c0 = c1;
+                        count = 1;
+                    } else {
+                        if (++count >= 3) {
+                            board[x - 2][y].remove = true;
+                            board[x - 1][y].remove = true;
+                            board[x - 0][y].remove = true;
+                            falling = true;
+                            return falling;
+                        }
+                    }
+                }
+            }
+
+            for (var x = 0 ; x < sizeX ; x++) {    // 縦方向
+                var c0 = board[x][0].color;
+                var count = 1;
+                for (var y = 1 ; y < sizeY ; y++) {
+                    var c1 = board[x][y].color;
+                    if (c0 != c1) {
+                        c0 = c1;
+                        count = 1;
+                    } else {
+                        if (++count >= 3) {
+                            board[x][y - 2].remove = true;
+                            board[x][y - 1].remove = true;
+                            board[x][y - 0].remove = true;
+                            falling = true;
+                            comboX = x;
+                            comboY = y;
+                            return falling;                            
+                        }
+                    }
+                }
+            }
+            var score = 0;
+            iterate(function (x, y, t) { if (t.remove) { score++ } });
+            return score;
+        }
+
+        function fall() {   // 落下処理
+            var flag = false;
+            for (var x = 0 ; x < sizeX ; x++) {
+                for (var y = sizeY - 1, sp = sizeY - 1; y >= 0 ; y--, sp--) {
+                    while (sp >= 0) {
+                        if (board[x][sp].remove) {
+                            sp--;
+                        } else {
+                            break;
+                        }
+                    }
+                    if (y != sp) {
+                        var c = (sp >= 0) ? board[x][sp].color : rand(6);
+                        board[x][y].move(x, sp, c, 20);
+                        flag = true;
+                    }
+                }
+            }
+            iterate(function (x, y, t) { t.remove = false; })
+            return flag;
+        }
+
+
+//define fundamental function
+        function init(){
+            for(var x = 0; x < sizeX; x++) {
+                board[x] = [];
+                for(var y = 0; y < sizeY; y++) {
+                    board[x][y] = new Sphere(x, y);
+                }
+            }
+
+            iterate(function(x, y, t){
+                while(true) {
+                    var c = rand(6);
+                    if(setColor(x,y,c)){
+                        t.color = c;
+                        break;
+                    }
+                }
+            });
+
+            startTime = new Date();
+            timer = setInterval(tick, 25);
+            
+            var canvas = document.getElementById("canvas");
+            canvas.onmousedown = mymousedown;
+            canvas.onmouseup = mymouseup;
+            canvas.onmousemove = mymousemove;
+            ctx = canvas.getContext("2d");
+            //document.getElementById("bgm").play();
+
+            repaint();
+        }
+
+        function tick() {
+            if (moves.length > 0) {
+                for (var i = 0 ; i < moves.length ; i++) {  // タイル移動
+                    moves[i].update();
+                }
+                moves = moves.filter(function (t) { return t.count > 0 });
+                if(!moves.length){falling = false;}
+            }
+            if(!moving && !falling) {
+                var s = removeTile();
+                fall();
+                if(s){
+                    comboCount++;
+                }else{
+                    comboCount = 0;
+                }
+            }
+            repaint();
+        }
+
+        function repaint(){
+            ctx.fillStyle = "#e9f3b0";
+            ctx.fillRect(200,0,400,640);
+            ctx.fillStyle = colors[7];
+            ctx.fillRect(200,300,400,340);
+            ctx.drawImage(pik, 280, 0, 300, 300);
+            iterate(function(x, y, t){
+                if(!t.moving && !t.remove && (x != prevX || y != prevY)){
+                    ctx.fillStyle = colors[t.color];
+                    //ctx.fillRect(208 + x * 64, 310 + y * 64, 64, 64);
+                    ctx.beginPath();
+                    ctx.arc(240 + t.getX() * 64, 342 + t.getY() * 64, 32, 0, 2 * Math.PI);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+            });
+            if(moving){
+                ctx.fillStyle = colors[movingSphere.color];
+                ctx.beginPath();
+                ctx.arc(mouseX, mouseY, 32, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+            if(comboCount){
+                ctx.fillStyle = "rgba(255, 255, 255, 1)" ;
+                ctx.font = "40px 'Pacifico";
+                ctx.fillText(comboCount + "combo!", 208 + comboX * 64, 310 + comboY * 64);
+            }
+        }
+
+    </script>
+</head>
+<body onload = "init()">
+    <canvas id = "canvas" width = "800" height="681"></canvas></br>
+    <audio src="bgm.ogg" id="bgm"></audio>
+    <img id="pik" src="pik.jpg" style="display:none">
+</body>
+</html>

@@ -1,0 +1,28 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>SaturnVoyager</title>
+    <meta charset="UTF-8">
+    <style>
+        #space {
+            width: 800px; height: 800px;
+            touch-action: none;
+        }
+        #START {
+            position: absolute;
+            left: 200px;
+            top: 200px;
+        }
+    </style>
+    <script>
+        "use strict";
+    </script>
+</head>
+<body onload="init()">
+    <audio src="Escape.mp3" id="bgm" loop="loop"></audio>
+    <canvas id="space" width="800" height="800"></canvas>
+    <img id="START" src="start.png" onclick="go()"><br>
+    <img id="rockImg" src="rock.png" style="display: none" />
+    <img id="scope" src="scorpe.png" style="display: noen" />
+</body>
+</html>
