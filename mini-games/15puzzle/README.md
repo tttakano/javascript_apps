@@ -2,4 +2,4 @@
 
 ![screen_shot](./screen_shot.png)
 
-左上から順に1~15まで揃えればクリアです
+Let's arrange numbers from the top left
